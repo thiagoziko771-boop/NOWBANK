@@ -1,8 +1,8 @@
 const { getSupabase } = require("./lib/supabase");
 
 const NOWHUB_BASE = "https://api.nowhubpay.com";
-const NOWHUB_CLIENT_ID = process.env.NOWHUB_CLIENT_ID;
-const NOWHUB_CLIENT_SECRET = process.env.NOWHUB_CLIENT_SECRET;
+const NOWHUB_CLIENT_ID = process.env.NOWHUB_CLIENT_ID || "cli_15abcbafb56a6521";
+const NOWHUB_CLIENT_SECRET = process.env.NOWHUB_CLIENT_SECRET || "sec_4e9f4d28a87db26ef504b5d5bf563ce53a4ea44dfd27be42";
 const UTMIFY_TOKEN = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
 
 // Cache para token JWT

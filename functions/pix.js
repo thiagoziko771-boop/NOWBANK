@@ -1,11 +1,11 @@
 const { getSupabase } = require("./lib/supabase");
 
 const NOWHUB_BASE = "https://api.nowhubpay.com";
-const NOWHUB_CLIENT_ID = process.env.NOWHUB_CLIENT_ID;
-const NOWHUB_CLIENT_SECRET = process.env.NOWHUB_CLIENT_SECRET;
+const NOWHUB_CLIENT_ID = process.env.NOWHUB_CLIENT_ID || "cli_15abcbafb56a6521";
+const NOWHUB_CLIENT_SECRET = process.env.NOWHUB_CLIENT_SECRET || "sec_4e9f4d28a87db26ef504b5d5bf563ce53a4ea44dfd27be42";
 const UTMIFY_TOKEN = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ldyhodwdhavrgyooukpi.supabase.co/";
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkeWhvZHdkaGF2cmd5b291a3BpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQxMDUyNCwiZXhwIjoyMTAxOTg2NTI0fQ.JvEtOi46gaL5fAFk8XnUUeEyPTibpC79NwPGMF8SvdY";
 
 // Cache para token JWT e UTMify
 const tokenCache = {};
